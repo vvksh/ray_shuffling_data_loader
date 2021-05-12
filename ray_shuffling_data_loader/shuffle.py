@@ -75,7 +75,7 @@ def shuffle_no_stats(
 
 def shuffle(
         filenames: List[str],
-        batch_consumer: Callable[[int, int, Iterable[pd.DataFrame]], None],
+        consumer_queues: List[BatchQueue],
         num_epochs: int,
         num_reducers: int,
         num_trainers: int,
@@ -183,9 +183,6 @@ def shuffle_epoch(
             np.array_split(shuffled, num_trainers)):
         consume(trainer_idx, batch_consumer, trial_start, stats_collector,
                 epoch, list(batches))
-        # Signal to all batch consumers that we're done producing batches for
-        # this epoch.
-        batch_consumer(trainer_idx, epoch, None)
     return shuffled
 
 
@@ -217,11 +214,6 @@ def shuffle_map(filename: str, num_reducers: int,
     return reducer_parts
 
 
-#
-# Shared shuffle stages.
-#
-
-
 @ray.remote
 def shuffle_reduce(reduce_index: int,
                    stats_collector: Union[TrialStatsCollector, None],
@@ -251,6 +243,9 @@ def consume(trainer_idx: int,
     start = timeit.default_timer()
     trial_time_to_consume = start - trial_start
     batch_consumer(trainer_idx, epoch, batches)
+    # Signal to batch consumer that we're done producing batches for this
+    # epoch.
+    batch_consumer(trainer_idx, epoch, None)
     end = timeit.default_timer()
     duration = end - start
     if stats_collector is not None:
