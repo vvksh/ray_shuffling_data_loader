@@ -1,3 +1,4 @@
+import logging
 import time
 import timeit
 
@@ -9,6 +10,20 @@ import numpy as np
 import torch
 import horovod.torch as hvd
 from horovod.ray import RayExecutor
+
+# TODO: move it somewhere
+def setup_custom_logger(name):
+    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s -%(funcName)s - %(message)s')
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    return logger
+
+logger = setup_custom_logger(__name__)
 
 from ray_shuffling_data_loader.torch_dataset import (
     TorchShufflingDataset)
@@ -157,6 +172,7 @@ def train_main(args, filenames):
         last_batch_time = start_epoch
         batch_wait_times = []
         for batch_idx, (data, target) in enumerate(train_dataset):
+            logger.info(f"Processing batch_idx {batch_idx}")
             batch_wait_times.append(timeit.default_timer() - last_batch_time)
             if torch.cuda.is_available() and not args.no_cuda:
                 if isinstance(data, list):
@@ -165,9 +181,10 @@ def train_main(args, filenames):
             optimizer.zero_grad()
             # output = model(data)
             if batch_idx % args.log_interval == 0:
-                print(
+                logger.info(
                     f"Processing batch {batch_idx} in epoch {epoch} on worker "
                     f"{rank}.")
+            logger.info("Mock sleeping")
             time.sleep(args.mock_train_step_time)
             # TODO(Clark): Add worker synchronization barrier here.
             # loss = F.nll_loss(output, target)
@@ -179,14 +196,14 @@ def train_main(args, filenames):
         std_batch_wait_time = np.std(batch_wait_times)
         max_batch_wait_time = np.max(batch_wait_times)
         min_batch_wait_time = np.min(batch_wait_times)
-        print(
+        logger.info(
             f"\nEpoch {epoch}, worker {rank} stats over "
             f"{len(batch_wait_times)} steps: {epoch_duration:.3f}")
-        print(
+        logger.info(
             f"Mean batch wait time: {avg_batch_wait_time:.3f}s +- "
             f"{std_batch_wait_time}")
-        print(f"Max batch wait time: {max_batch_wait_time:.3f}s")
-        print(f"Min batch wait time: {min_batch_wait_time:.3f}s")
+        logger.info(f"Max batch wait time: {max_batch_wait_time:.3f}s")
+        logger.info(f"Min batch wait time: {min_batch_wait_time:.3f}s")
         return batch_wait_times
 
     print(f"Starting training on worker {rank}.")
@@ -285,3 +302,5 @@ if __name__ == "__main__":
     executor.shutdown()
 
     print("Done consuming batches.")
+
+

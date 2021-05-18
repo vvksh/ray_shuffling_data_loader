@@ -79,6 +79,7 @@ class ShufflingDataset:
         else:
             # rank != 0 --> worker process
             # Connect to the batch queue.
+            logger.info("Creating queue on worker process")
             self._batch_queue = MultiQueue(
                 num_epochs * num_trainers,
                 max_batch_queue_size,
