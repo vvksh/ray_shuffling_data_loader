@@ -334,6 +334,7 @@ def connect_queue_actor(name, num_retries=5):
 
 class _QueueActor:
     def __init__(self, num_queues, maxsize):
+        logger.info(f"Initializing _QueueActor with num_queues: {num_queues} and max_size {maxsize} ")
         self.maxsize = maxsize
         self.queues = [asyncio.Queue(self.maxsize) for _ in range(num_queues)]
 

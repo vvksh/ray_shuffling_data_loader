@@ -60,8 +60,10 @@ class ShufflingDataset:
                 num_epochs * num_trainers,
                 max_batch_queue_size,
                 name=MULTIQUEUE_ACTOR_NAME,
+                actor_options={"num_cpus":1},
                 connect=False)
             # Wait until actor has been created.
+            logger.info("master: batch_queue created")
             self._batch_queue.size(0)
             # Kick off shuffle.
             # TODO(Clark): Move the shuffle kickoff to an init() method so the
@@ -75,7 +77,7 @@ class ShufflingDataset:
                 num_trainers,
                 max_concurrent_epochs,
                 collect_stats=False)
-            logger.info("")
+            logger.info(f"shuffle_result: {self._shuffle_result}")
         else:
             # rank != 0 --> worker process
             # Connect to the batch queue.
@@ -85,6 +87,9 @@ class ShufflingDataset:
                 max_batch_queue_size,
                 name=MULTIQUEUE_ACTOR_NAME,
                 connect=True)
+            logger.info("master: batch_queue connected")
+
+
             self._shuffle_result = None
 
         self._num_epochs = num_epochs

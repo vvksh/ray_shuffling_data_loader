@@ -129,7 +129,7 @@ def train_main(args, filenames):
     train_dataset = create_dataset(
         filenames,
         batch_size=args.batch_size,
-        rank=rank,
+        rank=rank+1, # will attempt to connect to an existing one
         num_epochs=args.epochs,
         world_size=hvd.size(),
         num_reducers=args.num_reducers,
@@ -287,16 +287,25 @@ if __name__ == "__main__":
         f"{human_readable_size(num_bytes)}.")
 
     print("Create Ray executor")
+    # create  a trainset
+    create_dataset(
+        filenames,
+        batch_size=args.batch_size,
+        rank=0,
+        num_epochs=args.epochs,
+        world_size=args.num_hosts,
+        num_reducers=args.num_reducers,
+        max_concurrent_epochs=args.max_concurrent_epochs)
     num_hosts = args.num_hosts
     num_slots = args.num_slots
     cpus_per_slot = args.cpus_per_slot
     settings = RayExecutor.create_settings(timeout_s=30)
     executor = RayExecutor(
         settings,
-        num_hosts=num_hosts,
+        num_workers=num_hosts,
         num_slots=num_slots,
         use_gpu=True,
-        cpus_per_slot=cpus_per_slot)
+        cpus_per_worker=cpus_per_slot)
     executor.start()
     executor.run(train_main, args=[args, filenames])
     executor.shutdown()
