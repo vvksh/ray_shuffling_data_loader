@@ -9,7 +9,9 @@ from smart_open import open
 import ray
 from ray_shuffling_data_loader.stats import (
     TrialStatsCollector, collect_store_stats, TrialStats)
+from .logger import setup_custom_logger
 
+logger = setup_custom_logger(__name__)
 #
 # In-memory shuffling, loads data from disk once per epoch.
 #
@@ -81,6 +83,7 @@ def shuffle(
         num_trainers: int,
         max_concurrent_epochs: int,
         collect_stats: bool = True) -> Union[TrialStats, float]:
+    logger.info("Starting shuffle")
     if collect_stats:
         stats_collector = TrialStatsCollector.remote(
             num_epochs, len(filenames), num_reducers, num_trainers)
@@ -186,6 +189,7 @@ def shuffle_epoch(
         # Signal to all batch consumers that we're done producing batches for
         # this epoch.
         batch_consumer(trainer_idx, epoch, None)
+    logger.info(f"Done shuffling for epoch {epoch}")
     return shuffled
 
 

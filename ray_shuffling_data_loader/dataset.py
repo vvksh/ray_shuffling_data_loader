@@ -6,10 +6,12 @@ import ray
 from ray._private.utils import get_num_cpus
 from ray_shuffling_data_loader.shuffle import shuffle
 from ray_shuffling_data_loader.multiqueue import MultiQueue
+from .logger import setup_custom_logger
 
 MULTIQUEUE_ACTOR_NAME = "MultiQueue"
 REDUCER_CLUSTER_CORE_SHARE = 0.6
 
+logger = setup_custom_logger(__name__)
 
 class ShufflingDataset:
     """
@@ -50,6 +52,7 @@ class ShufflingDataset:
         self._batch_size = batch_size
 
         if rank == 0:
+            logger.info("Is master")
             # rank == 0 --> master process
             # Create the batch queue. Trainers will consume GPU batches
             # through this batch queue.
@@ -72,6 +75,7 @@ class ShufflingDataset:
                 num_trainers,
                 max_concurrent_epochs,
                 collect_stats=False)
+            logger.info("")
         else:
             # rank != 0 --> worker process
             # Connect to the batch queue.
@@ -108,6 +112,7 @@ class ShufflingDataset:
         """
         This iterator yields GPU batches from the shuffling queue.
         """
+        logger.info("getting batch for training")
         if self._epoch is None or self._epoch == self._last_epoch:
             raise ValueError(
                 "You must set the epoch on this dataset via set_epoch()"
@@ -119,6 +124,7 @@ class ShufflingDataset:
         while True:
             queue_idx = self._epoch * self._num_trainers + self._rank
             batches = self._batch_queue.get(queue_idx, block=True)
+
             if batches is None:
                 break
             df = ray.get(batches)

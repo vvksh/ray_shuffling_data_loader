@@ -3,10 +3,11 @@ import logging
 import time
 from typing import Optional, Any, List, Dict
 from collections.abc import Iterable
+from .logger import setup_custom_logger
 
 import ray
 
-logger = logging.getLogger(__name__)
+logger = setup_custom_logger(__name__)
 
 
 class Empty(Exception):
@@ -61,15 +62,18 @@ class MultiQueue:
         self.num_queues = num_queues
         self.maxsize = maxsize
         if connect:
+            logger.info("Will connect to queue actor")
             assert actor_options is None
             assert name is not None
             self.actor = connect_queue_actor(name, connect_retries)
+            logger.info("Successfully connected to queue actor")
         else:
             actor_options = actor_options or {}
             if name is not None:
                 actor_options["name"] = name
             self.actor = ray.remote(_QueueActor).options(
                 **actor_options).remote(self.num_queues, self.maxsize)
+            logger.info("Successfully spun up queue actor")
 
     def __len__(self) -> int:
         return sum(
