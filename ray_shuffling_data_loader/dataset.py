@@ -14,11 +14,14 @@ REDUCER_CLUSTER_CORE_SHARE = 0.6
 logger = setup_custom_logger(__name__)
 
 
-def create_batch_queue_and_shuffle(num_epochs,
+def create_batch_queue_and_shuffle(filenames,
+                                   num_epochs,
                                    num_trainers,
-                                   max_batch_queue_size,
+                                   batch_size,
                                    max_concurrent_epochs,
-                                   num_reducers = None):
+                                   num_reducers = None,
+                                   max_batch_queue_size = 0
+                                   ):
     _batch_queue = MultiQueue(
         num_epochs * num_trainers,
         max_batch_queue_size,

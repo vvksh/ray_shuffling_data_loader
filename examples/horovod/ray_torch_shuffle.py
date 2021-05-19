@@ -310,9 +310,10 @@ if __name__ == "__main__":
     num_hosts = args.num_hosts
     num_slots = args.num_slots
     cpus_per_slot = args.cpus_per_slot
-    batch_queue = create_batch_queue_and_shuffle(num_epochs=args.epochs,
+    batch_queue = create_batch_queue_and_shuffle(filenames=filenames,
+                                                 num_epochs=args.epochs,
                                                  num_trainers=num_hosts,
-                                                 max_batch_queue_size = args.batch_size,
+                                                 batch_size=args.batch_size,
                                                  max_concurrent_epochs=args.max_concurrent_epochs,
                                                  num_reducers=args.num_reducers
                                                  )
