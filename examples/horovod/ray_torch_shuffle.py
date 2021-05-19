@@ -139,7 +139,7 @@ def train_main(args, filenames, batch_queue):
     train_dataset = create_dataset(
         filenames,
         batch_size=args.batch_size,
-        rank=rank+1, # will attempt to connect to an existing one
+        rank=rank, # will attempt to connect to an existing one
         num_epochs=args.epochs,
         world_size=hvd.size(),
         num_reducers=args.num_reducers,

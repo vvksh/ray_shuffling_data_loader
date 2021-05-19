@@ -131,6 +131,7 @@ class ShufflingDataset:
                 self._shuffle_result = None
         else:
             self._batch_queue = batch_queue
+            self._shuffle_result = None
 
         self._num_epochs = num_epochs
         self._num_trainers = num_trainers
