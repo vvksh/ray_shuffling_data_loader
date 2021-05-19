@@ -29,4 +29,5 @@ def generate_dummy_data(num_files: int=4,
         f"{human_readable_size(num_bytes)}.")
 
 if __name__ == '__main__':
-    generate_dummy_data()
+    import fire
+    fire.Fire(generate_dummy_data)
