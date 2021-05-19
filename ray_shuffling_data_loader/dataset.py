@@ -13,6 +13,40 @@ REDUCER_CLUSTER_CORE_SHARE = 0.6
 
 logger = setup_custom_logger(__name__)
 
+
+def create_batch_queue_and_shuffle(num_epochs,
+                                   num_trainers,
+                                   max_batch_queue_size,
+                                   max_concurrent_epochs,
+                                   num_reducers = None):
+    _batch_queue = MultiQueue(
+        num_epochs * num_trainers,
+        max_batch_queue_size,
+        name=MULTIQUEUE_ACTOR_NAME,
+        actor_options={"num_cpus": 1},
+        connect=False)
+    # Wait until actor has been created.
+    logger.info("master: batch_queue created")
+    _batch_queue.size(0)
+    # Kick off shuffle.
+    # TODO(Clark): Move the shuffle kickoff to an init() method so the
+    # user can better control when the shuffling starts?
+    if num_reducers is None:
+        num_reducers = int(
+            num_trainers * get_num_cpus() * REDUCER_CLUSTER_CORE_SHARE)
+
+    _shuffle_result = ray.remote(shuffle).remote(
+        filenames,
+        functools.partial(batch_consumer, _batch_queue,
+                          batch_size, num_trainers),
+        num_epochs,
+        num_reducers,
+        num_trainers,
+        max_concurrent_epochs,
+        collect_stats=False)
+    logger.info(f"Shuffle done: result: {ray.get(_shuffle_result)}")
+    return _batch_queue
+
 class ShufflingDataset:
     """
     A shuffling dataset that yields batches upon iteration.
@@ -44,53 +78,56 @@ class ShufflingDataset:
                  drop_last: bool = False,
                  num_reducers: int = None,
                  max_concurrent_epochs: int = 2,
+                 batch_queue: MultiQueue = None,
                  max_batch_queue_size: int = 0):
         if num_reducers is None:
             num_reducers = int(
                 num_trainers * get_num_cpus() * REDUCER_CLUSTER_CORE_SHARE)
 
         self._batch_size = batch_size
+        if batch_queue is None:
+            if rank == 0:
+                logger.info("Is master")
+                # rank == 0 --> master process
+                # Create the batch queue. Trainers will consume GPU batches
+                # through this batch queue.
+                self._batch_queue = MultiQueue(
+                    num_epochs * num_trainers,
+                    max_batch_queue_size,
+                    name=MULTIQUEUE_ACTOR_NAME,
+                    actor_options={"num_cpus":1},
+                    connect=False)
+                # Wait until actor has been created.
+                logger.info("master: batch_queue created")
+                self._batch_queue.size(0)
+                # Kick off shuffle.
+                # TODO(Clark): Move the shuffle kickoff to an init() method so the
+                # user can better control when the shuffling starts?
+                self._shuffle_result = ray.remote(shuffle).remote(
+                    filenames,
+                    functools.partial(batch_consumer, self._batch_queue,
+                                      batch_size, num_trainers),
+                    num_epochs,
+                    num_reducers,
+                    num_trainers,
+                    max_concurrent_epochs,
+                    collect_stats=False)
+                logger.info(f"shuffle_result: {self._shuffle_result}")
+            else:
+                # rank != 0 --> worker process
+                # Connect to the batch queue.
+                logger.info("Creating queue on worker process")
+                self._batch_queue = MultiQueue(
+                    num_epochs * num_trainers,
+                    max_batch_queue_size,
+                    name=MULTIQUEUE_ACTOR_NAME,
+                    connect=True)
+                logger.info("master: batch_queue connected")
 
-        if rank == 0:
-            logger.info("Is master")
-            # rank == 0 --> master process
-            # Create the batch queue. Trainers will consume GPU batches
-            # through this batch queue.
-            self._batch_queue = MultiQueue(
-                num_epochs * num_trainers,
-                max_batch_queue_size,
-                name=MULTIQUEUE_ACTOR_NAME,
-                actor_options={"num_cpus":1},
-                connect=False)
-            # Wait until actor has been created.
-            logger.info("master: batch_queue created")
-            self._batch_queue.size(0)
-            # Kick off shuffle.
-            # TODO(Clark): Move the shuffle kickoff to an init() method so the
-            # user can better control when the shuffling starts?
-            self._shuffle_result = ray.remote(shuffle).remote(
-                filenames,
-                functools.partial(batch_consumer, self._batch_queue,
-                                  batch_size, num_trainers),
-                num_epochs,
-                num_reducers,
-                num_trainers,
-                max_concurrent_epochs,
-                collect_stats=False)
-            logger.info(f"shuffle_result: {self._shuffle_result}")
+
+                self._shuffle_result = None
         else:
-            # rank != 0 --> worker process
-            # Connect to the batch queue.
-            logger.info("Creating queue on worker process")
-            self._batch_queue = MultiQueue(
-                num_epochs * num_trainers,
-                max_batch_queue_size,
-                name=MULTIQUEUE_ACTOR_NAME,
-                connect=True)
-            logger.info("master: batch_queue connected")
-
-
-            self._shuffle_result = None
+            self._batch_queue = batch_queue
 
         self._num_epochs = num_epochs
         self._num_trainers = num_trainers

@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import time
@@ -12,7 +13,14 @@ import torch
 import horovod.torch as hvd
 from horovod.ray import RayExecutor
 
+from ray_shuffling_data_loader.dataset import create_batch_queue_and_shuffle
+
+MULTIQUEUE_ACTOR_NAME = "multiqueue"
+
 # TODO: move it somewhere
+from ray_shuffling_data_loader.multiqueue import MultiQueue
+
+
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s -%(funcName)s - %(message)s')
 
@@ -114,7 +122,8 @@ class Net(nn.Module):
         return F.log_softmax(x)
 
 
-def train_main(args, filenames):
+
+def train_main(args, filenames, batch_queue):
     # Horovod: initialize library.
     hvd.init()
     torch.manual_seed(args.seed)
@@ -134,6 +143,7 @@ def train_main(args, filenames):
         num_epochs=args.epochs,
         world_size=hvd.size(),
         num_reducers=args.num_reducers,
+        batch_queue=batch_queue,
         max_concurrent_epochs=args.max_concurrent_epochs)
     model = Net()
     # By default, Adasum doesn"t need scaling up learning rate.
@@ -240,6 +250,7 @@ def create_dataset(
         num_epochs,
         world_size,
         num_reducers,
+        batch_queue,
         max_concurrent_epochs):
     print(f"Creating Torch shuffling dataset for worker {rank} with "
           f"{batch_size} batch size, {num_epochs} epochs, {num_reducers} "
@@ -255,12 +266,14 @@ def create_dataset(
         world_size,
         batch_size,
         rank,
+        batch_queue=batch_queue,
         num_reducers=num_reducers,
         max_concurrent_epochs=max_concurrent_epochs,
         feature_columns=feature_columns,
         feature_types=feature_types,
         label_column=label_column,
         label_type=label_type)
+
 
 
 
@@ -274,7 +287,7 @@ if __name__ == "__main__":
     # dont generate, assume files are already accessible by all nodes
     filenames = []
     for i in range(args.num_files):
-        filenames.append(os.path.join(args.data_dir, "input_data_{i}_parquet.snappy"))
+        filenames.append(os.path.join(args.data_dir, f"input_data_{i}.parquet.snappy"))
     # num_rows = args.num_rows
     # num_files = args.num_files
     # num_row_groups_per_file = args.num_row_groups_per_file
@@ -294,17 +307,15 @@ if __name__ == "__main__":
 
     print("Create Ray executor")
     # create  a trainset
-    create_dataset(
-        filenames,
-        batch_size=args.batch_size,
-        rank=0,
-        num_epochs=args.epochs,
-        world_size=args.num_hosts,
-        num_reducers=args.num_reducers,
-        max_concurrent_epochs=args.max_concurrent_epochs)
     num_hosts = args.num_hosts
     num_slots = args.num_slots
     cpus_per_slot = args.cpus_per_slot
+    batch_queue = create_batch_queue_and_shuffle(num_epochs=args.epochs,
+                                                 num_trainers=num_hosts,
+                                                 max_batch_queue_size = args.batch_size,
+                                                 max_concurrent_epochs=args.max_concurrent_epochs,
+                                                 num_reducers=args.num_reducers
+                                                 )
     settings = RayExecutor.create_settings(timeout_s=30)
     executor = RayExecutor(
         settings,
@@ -313,7 +324,7 @@ if __name__ == "__main__":
         use_gpu=True,
         cpus_per_worker=cpus_per_slot)
     executor.start()
-    executor.run(train_main, args=[args, filenames])
+    executor.run(train_main, args=[args, filenames,batch_queue ])
     executor.shutdown()
 
     print("Done consuming batches.")
