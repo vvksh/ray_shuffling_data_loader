@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import timeit
 
@@ -262,6 +263,7 @@ def create_dataset(
         label_type=label_type)
 
 
+
 if __name__ == "__main__":
     args = parser.parse_args()
     from ray_shuffling_data_loader.stats import human_readable_size
@@ -269,22 +271,26 @@ if __name__ == "__main__":
     print("Connecting to Ray cluster...")
     ray.init(address=args.address)
 
-    num_rows = args.num_rows
-    num_files = args.num_files
-    num_row_groups_per_file = args.num_row_groups_per_file
-    max_row_group_skew = args.max_row_group_skew
-    data_dir = args.data_dir
-    print(
-        f"Generating {num_rows} rows over {num_files} files, with "
-        f"{num_row_groups_per_file} row groups per file and at most "
-        f"{100 * max_row_group_skew:.1f}% row group skew.")
-    filenames, num_bytes = generate_data(
-        num_rows, num_files, num_row_groups_per_file, max_row_group_skew,
-        data_dir)
-    print(
-        f"Generated {len(filenames)} files containing {num_rows} rows "
-        f"with {num_row_groups_per_file} row groups per file, totalling "
-        f"{human_readable_size(num_bytes)}.")
+    # dont generate, assume files are already accessible by all nodes
+    filenames = []
+    for i in range(args.num_files):
+        filenames.append(os.path.join(args.data_dir, "input_data_{i}_parquet.snappy"))
+    # num_rows = args.num_rows
+    # num_files = args.num_files
+    # num_row_groups_per_file = args.num_row_groups_per_file
+    # max_row_group_skew = args.max_row_group_skew
+    # data_dir = args.data_dir
+    # print(
+    #     f"Generating {num_rows} rows over {num_files} files, with "
+    #     f"{num_row_groups_per_file} row groups per file and at most "
+    #     f"{100 * max_row_group_skew:.1f}% row group skew.")
+    # filenames, num_bytes = generate_data(
+    #     num_rows, num_files, num_row_groups_per_file, max_row_group_skew,
+    #     data_dir)
+    # print(
+    #     f"Generated {len(filenames)} files containing {num_rows} rows "
+    #     f"with {num_row_groups_per_file} row groups per file, totalling "
+    #     f"{human_readable_size(num_bytes)}.")
 
     print("Create Ray executor")
     # create  a trainset
