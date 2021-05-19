@@ -11,6 +11,10 @@ def generate_dummy_data(num_files: int=4,
                   max_row_group_skew:float=0.0,
                   data_dir:str= "/root/data"):
     # create data_dir if not exists
+    import ray
+    print("Connecting to Ray cluster...")
+    ray.init(address="auto")
+
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     print(
         f"Generating {num_rows} rows over {num_files} files, with "
