@@ -7,8 +7,9 @@ import numpy as np
 from smart_open import open
 
 import ray
-from ray_shuffling_data_loader.stats import (
-    TrialStatsCollector, collect_store_stats, TrialStats)
+from ray_shuffling_data_loader.stats import (TrialStatsCollector,
+                                             collect_store_stats, TrialStats)
+
 from .logger import setup_custom_logger
 
 logger = setup_custom_logger(__name__)
@@ -75,18 +76,17 @@ def shuffle_no_stats(
     return duration, None
 
 
-def shuffle(
-        filenames: List[str],
-        batch_consumer: Callable[[int, int, Iterable[pd.DataFrame]], None],
-        num_epochs: int,
-        num_reducers: int,
-        num_trainers: int,
-        max_concurrent_epochs: int,
-        collect_stats: bool = True) -> Union[TrialStats, float]:
-    logger.info("Starting shuffle")
+def shuffle(filenames: List[str],
+            batch_consumer: Callable[[int, int, Iterable[pd.DataFrame]], None],
+            num_epochs: int,
+            num_reducers: int,
+            num_trainers: int,
+            max_concurrent_epochs: int,
+            collect_stats: bool = True) -> Union[TrialStats, float]:
     if collect_stats:
-        stats_collector = TrialStatsCollector.remote(
-            num_epochs, len(filenames), num_reducers, num_trainers)
+        stats_collector = TrialStatsCollector.options(
+            placement_group=None).remote(num_epochs, len(filenames),
+                                         num_reducers, num_trainers)
     else:
         stats_collector = None
 
@@ -139,9 +139,9 @@ def shuffle(
                     epoch_idx,
                     timeit.default_timer() - start_throttle)
 
-        epoch_reducers = shuffle_epoch(
-            epoch_idx, filenames, batch_consumer, num_reducers, num_trainers,
-            start, stats_collector)
+        epoch_reducers = shuffle_epoch(epoch_idx, filenames, batch_consumer,
+                                       num_reducers, num_trainers, start,
+                                       stats_collector)
         in_progress.extend(epoch_reducers)
 
     # Block until all epochs are done.
@@ -165,13 +165,15 @@ def shuffle_epoch(
         batch_consumer: Callable[[int, int, Iterable[pd.DataFrame]], None],
         num_reducers: int, num_trainers: int, trial_start: float,
         stats_collector: Union[TrialStatsCollector, None]) -> None:
+
     if stats_collector is not None:
         stats_collector.epoch_start.remote(epoch)
     reducers_partitions = []
     for filename in filenames:
+        logger.info(f"Going to call shuffle map tasks for {filename}")
         file_reducer_parts = shuffle_map.options(
-            num_returns=num_reducers).remote(filename, num_reducers,
-                                             stats_collector, epoch)
+            num_returns=num_reducers, placement_group=None).remote(
+                filename, num_reducers, stats_collector, epoch)
         if not isinstance(file_reducer_parts, list):
             file_reducer_parts = [file_reducer_parts]
         reducers_partitions.append(file_reducer_parts)
@@ -179,8 +181,9 @@ def shuffle_epoch(
     shuffled = []
     for reducer_idx, reducer_partitions in enumerate(
             zip(*reducers_partitions)):
-        consumer_batches = shuffle_reduce.remote(reducer_idx, stats_collector,
-                                                 epoch, *reducer_partitions)
+        logger.info(f"Going to call shuffle_reduce task for  reducer idx{reducer_idx}")
+        consumer_batches = shuffle_reduce.options(placement_group=None).remote(
+            reducer_idx, stats_collector, epoch, *reducer_partitions)
         shuffled.append(consumer_batches)
     for trainer_idx, batches in enumerate(
             np.array_split(shuffled, num_trainers)):
@@ -189,7 +192,6 @@ def shuffle_epoch(
         # Signal to all batch consumers that we're done producing batches for
         # this epoch.
         batch_consumer(trainer_idx, epoch, None)
-    logger.info(f"Done shuffling for epoch {epoch}")
     return shuffled
 
 
@@ -197,6 +199,7 @@ def shuffle_epoch(
 def shuffle_map(filename: str, num_reducers: int,
                 stats_collector: Union[TrialStatsCollector, None],
                 epoch: int) -> List[List[ray.ObjectRef]]:
+    logger.info("Shuffling map initialized")
     if stats_collector is not None:
         stats_collector.map_start.remote(epoch)
     start = timeit.default_timer()
@@ -218,6 +221,7 @@ def shuffle_map(filename: str, num_reducers: int,
     read_duration = end_read - start
     if stats_collector is not None:
         stats_collector.map_done.remote(epoch, duration, read_duration)
+
     return reducer_parts
 
 
