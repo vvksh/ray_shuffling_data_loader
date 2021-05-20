@@ -36,7 +36,8 @@ def create_batch_queue_and_shuffle(filenames,
     if num_reducers is None:
         num_reducers = int(
             num_trainers * get_num_cpus() * REDUCER_CLUSTER_CORE_SHARE)
-
+    logger.info(f"Starting shuffling with filenames: {filenames}, num_epochs: {num_epochs}, "
+                f"num_reducers: {num_reducers}")
     _shuffle_result = ray.remote(shuffle).remote(
         filenames,
         functools.partial(batch_consumer, _batch_queue,
