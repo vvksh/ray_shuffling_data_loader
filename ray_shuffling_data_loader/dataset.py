@@ -26,7 +26,6 @@ def create_batch_queue_and_shuffle(filenames,
         num_epochs * num_trainers,
         max_batch_queue_size,
         name=MULTIQUEUE_ACTOR_NAME,
-        actor_options={"num_cpus": 1},
         connect=False)
     # Wait until actor has been created.
     logger.info("master: batch_queue created")
