@@ -1,11 +1,14 @@
 
-from ray_shuffling_data_loader.data_generation import generate_data
+from ray_shuffling_data_loader.data_generation import generate_data_local
 from ray_shuffling_data_loader.stats import human_readable_size
 
 from pathlib import Path
 
-
-def generate_dummy_data(num_files: int=4,
+"""
+Generates dummy data locally, this can be run on all ray worker nodes to generate identical files (just namewise)
+on all nodes in the same path, needed to experiment shuffling when no shared filesystem present
+"""
+def generate_dummy_data_local(num_files: int=4,
                   num_rows:int = 10000,
                   num_row_groups_per_file:int = 5,
                   max_row_group_skew:float=0.0,
@@ -20,7 +23,7 @@ def generate_dummy_data(num_files: int=4,
         f"Generating {num_rows} rows over {num_files} files, with "
         f"{num_row_groups_per_file} row groups per file and at most "
         f"{100 * max_row_group_skew:.1f}% row group skew.")
-    filenames, num_bytes = generate_data(
+    filenames, num_bytes = generate_data_local(
         num_rows, num_files, num_row_groups_per_file, max_row_group_skew,
         data_dir)
     print(
@@ -30,4 +33,4 @@ def generate_dummy_data(num_files: int=4,
 
 if __name__ == '__main__':
     import fire
-    fire.Fire(generate_dummy_data)
+    fire.Fire(generate_dummy_data_local)
