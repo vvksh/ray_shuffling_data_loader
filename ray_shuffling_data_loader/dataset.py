@@ -216,6 +216,8 @@ def batch_consumer(queue: MultiQueue, batch_size: int, num_trainers: int,
     Batch consumer that will be provided to the shuffler.
     """
     queue_idx = epoch * num_trainers + rank
+    logger.info(f"Adding batches for epoch: {epoch} and rank: {rank}, queue_idx: {queue_idx}")
+
     if batches is None:
         queue.put(queue_idx, None)
     else:

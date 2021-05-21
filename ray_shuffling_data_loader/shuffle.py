@@ -191,6 +191,7 @@ def shuffle_epoch(
                 epoch, list(batches))
         # Signal to all batch consumers that we're done producing batches for
         # this epoch.
+
         batch_consumer(trainer_idx, epoch, None)
     return shuffled
 
@@ -199,7 +200,7 @@ def shuffle_epoch(
 def shuffle_map(filename: str, num_reducers: int,
                 stats_collector: Union[TrialStatsCollector, None],
                 epoch: int) -> List[List[ray.ObjectRef]]:
-    logger.info("Shuffling map initialized")
+    logger.info(f"Shuffling map initialized for filename: {filename}")
     if stats_collector is not None:
         stats_collector.map_start.remote(epoch)
     start = timeit.default_timer()
@@ -221,19 +222,15 @@ def shuffle_map(filename: str, num_reducers: int,
     read_duration = end_read - start
     if stats_collector is not None:
         stats_collector.map_done.remote(epoch, duration, read_duration)
-
+    logger.info(f"Done mapping for {filename}")
     return reducer_parts
-
-
-#
-# Shared shuffle stages.
-#
 
 
 @ray.remote
 def shuffle_reduce(reduce_index: int,
                    stats_collector: Union[TrialStatsCollector, None],
                    epoch: int, *chunks: pd.DataFrame) -> List[pd.DataFrame]:
+    logger.info(f"Starting reduce for reduce_idx: {reduce_index}, epoch: {epoch}")
     if stats_collector is not None:
         stats_collector.reduce_start.remote(epoch)
     start = timeit.default_timer()
@@ -246,6 +243,7 @@ def shuffle_reduce(reduce_index: int,
     duration = timeit.default_timer() - start
     if stats_collector is not None:
         stats_collector.reduce_done.remote(epoch, duration)
+    logger.info(f"Starting reduce for reduce_idx: {reduce_index}, epoch: {epoch}")
     return batch
 
 
