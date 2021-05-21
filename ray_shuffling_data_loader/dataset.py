@@ -48,8 +48,7 @@ def create_batch_queue_and_shuffle(filenames,
         num_trainers,
         max_concurrent_epochs,
         collect_stats=False)
-    logger.info(f"Shuffle done: result: {ray.get(_shuffle_result)}")
-    return _batch_queue
+    return _batch_queue, _shuffle_result
 
 class ShufflingDataset:
     """
@@ -83,6 +82,7 @@ class ShufflingDataset:
                  num_reducers: int = None,
                  max_concurrent_epochs: int = 2,
                  batch_queue: MultiQueue = None,
+                 shuffle_result = None,
                  max_batch_queue_size: int = 0):
         if num_reducers is None:
             num_reducers = int(
@@ -132,7 +132,7 @@ class ShufflingDataset:
                 self._shuffle_result = None
         else:
             self._batch_queue = batch_queue
-            self._shuffle_result = None
+            self._shuffle_result = shuffle_result
 
         self._num_epochs = num_epochs
         self._num_trainers = num_trainers

@@ -123,7 +123,7 @@ class Net(nn.Module):
 
 
 
-def train_main(args, filenames, batch_queue):
+def train_main(args, filenames, batch_queue, shuffle_result):
     # Horovod: initialize library.
     hvd.init()
     torch.manual_seed(args.seed)
@@ -144,6 +144,7 @@ def train_main(args, filenames, batch_queue):
         world_size=hvd.size(),
         num_reducers=args.num_reducers,
         batch_queue=batch_queue,
+        shuffle_result=shuffle_result,
         max_concurrent_epochs=args.max_concurrent_epochs)
     model = Net()
     # By default, Adasum doesn"t need scaling up learning rate.
@@ -251,6 +252,7 @@ def create_dataset(
         world_size,
         num_reducers,
         batch_queue,
+        shuffle_result,
         max_concurrent_epochs):
     print(f"Creating Torch shuffling dataset for worker {rank} with "
           f"{batch_size} batch size, {num_epochs} epochs, {num_reducers} "
@@ -267,6 +269,7 @@ def create_dataset(
         batch_size,
         rank,
         batch_queue=batch_queue,
+        shuffle_result=shuffle_result,
         num_reducers=num_reducers,
         max_concurrent_epochs=max_concurrent_epochs,
         feature_columns=feature_columns,
@@ -310,7 +313,7 @@ if __name__ == "__main__":
     num_hosts = args.num_hosts
     num_slots = args.num_slots
     cpus_per_slot = args.cpus_per_slot
-    batch_queue = create_batch_queue_and_shuffle(filenames=filenames,
+    batch_queue, shuffle_result = create_batch_queue_and_shuffle(filenames=filenames,
                                                  num_epochs=args.epochs,
                                                  num_trainers=num_hosts,
                                                  batch_size=args.batch_size,
@@ -325,7 +328,7 @@ if __name__ == "__main__":
         use_gpu=True,
         cpus_per_worker=cpus_per_slot)
     executor.start()
-    executor.run(train_main, args=[args, filenames,batch_queue ])
+    executor.run(train_main, args=[args, filenames,batch_queue, shuffle_result ])
     executor.shutdown()
 
     print("Done consuming batches.")

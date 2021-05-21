@@ -49,6 +49,7 @@ class TorchShufflingDataset(IterableDataset):
                  drop_last: bool = False,
                  num_reducers=None,
                  batch_queue=None,
+                 shuffle_result=None,
                  max_concurrent_epochs=2,
                  feature_columns: List[Any] = None,
                  feature_shapes: Optional[List[Any]] = None,
@@ -66,7 +67,8 @@ class TorchShufflingDataset(IterableDataset):
             drop_last=drop_last,
             num_reducers=num_reducers,
             max_concurrent_epochs=max_concurrent_epochs,
-            batch_queue=batch_queue,)
+            batch_queue=batch_queue,
+            shuffle_result=shuffle_result)
         self._batch_transform = dataframe_to_tensor_factory(
             feature_columns=feature_columns,
             feature_shapes=feature_shapes,
