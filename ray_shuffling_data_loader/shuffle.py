@@ -204,7 +204,7 @@ def shuffle_map(filename: str, num_reducers: int,
         stats_collector.map_start.remote(epoch)
     start = timeit.default_timer()
     # Load file.
-    rows = pd.read_parquet(open(filename, "rb"))
+    rows = pd.read_parquet(filename)
     assert len(rows) > num_reducers
     end_read = timeit.default_timer()
 
